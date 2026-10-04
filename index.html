@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Parking Management App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+:root{
+  --bg:#E6E5E1; --surface:#FFFFFF; --ink:#16181B; --muted:#5E636B;
+  --line:#F2C230; --plate:#FBFAF3; --edge:#C9C7C0; --danger:#B3261E; --ok:#1E7B3C;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#1F2226;--surface:#2A2E33;--ink:#F1F0EC;--muted:#A3A8AF;--edge:#3C4148;--ok:#4CC274;--danger:#FF7B72;}
+}
+:root[data-theme="dark"]{--bg:#1F2226;--surface:#2A2E33;--ink:#F1F0EC;--muted:#A3A8AF;--edge:#3C4148;--ok:#4CC274;--danger:#FF7B72;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Barlow",system-ui,sans-serif}
+.wrap{max-width:480px;margin:0 auto;padding:20px 18px 40px}
+h1{font:800 30px/1 "Barlow Condensed",Arial Narrow,sans-serif;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px}
+.who{font-size:14px;color:var(--muted);text-align:right;line-height:1.3}
+.who b{color:var(--ink)}
+.link{background:none;border:0;color:var(--ink);text-decoration:underline;font:600 14px "Barlow",sans-serif;padding:0;cursor:pointer}
+.bay{height:6px;background:repeating-linear-gradient(90deg,var(--line) 0 40px,transparent 40px 56px);margin:16px 0 20px;border-radius:2px}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tabs button{font:700 17px "Barlow Condensed",sans-serif;padding:10px 6px;border:1.5px solid var(--edge);background:transparent;color:var(--ink);border-radius:20px}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+label{display:block;font-weight:600;font-size:15px;margin:18px 0 6px}
+.plate{width:100%;background:var(--plate);color:#111;border:3px solid #111;border-radius:8px;font:800 40px/1 "Barlow Condensed",Arial Narrow,sans-serif;letter-spacing:.08em;text-align:center;text-transform:uppercase;padding:14px 8px;box-shadow:inset 0 0 0 3px var(--plate),inset 0 0 0 5px #111}
+input[type=text],input[type=number],input[type=email],input[type=password],select{width:100%;font:500 18px "Barlow",sans-serif;padding:13px 14px;border:1.5px solid var(--edge);border-radius:8px;background:var(--surface);color:var(--ink)}
+input:disabled,select:disabled{opacity:.6}
+.codein{font:800 34px "Barlow Condensed",sans-serif!important;letter-spacing:.2em;text-align:center;text-transform:uppercase}
+input:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+.photo{display:flex;align-items:center;justify-content:center;min-height:170px;border:2px dashed var(--edge);border-radius:10px;background:var(--surface);color:var(--muted);overflow:hidden;cursor:pointer}
+.photo img{width:100%;display:block}
+.go{width:100%;margin-top:22px;padding:17px;border:0;border-radius:10px;background:var(--line);color:#16181B;font:800 22px "Barlow Condensed",sans-serif;cursor:pointer}
+.go:disabled{opacity:.5}
+.secondary{width:100%;margin-top:12px;padding:14px;border:1.5px solid var(--edge);border-radius:10px;background:transparent;color:var(--ink);font:700 19px "Barlow Condensed",sans-serif;cursor:pointer}
+.err{color:var(--danger);font-weight:600;min-height:1.5em;margin-top:10px}
+.note{color:var(--ok);font-weight:600;margin-top:10px}
+.ticket{background:var(--surface);border-radius:12px;padding:22px;text-align:center;border-top:8px solid var(--line)}
+.ticket .code{font:800 52px/1 "Barlow Condensed",sans-serif;letter-spacing:.14em;margin:14px 0 4px}
+.meta{color:var(--muted);font-size:15px}
+#qr{display:inline-block;background:#fff;padding:12px;border-radius:8px;margin-top:16px}
+.row{display:flex;gap:12px;align-items:center;background:var(--surface);border-radius:10px;padding:10px;margin-bottom:10px;cursor:pointer}
+.row img{width:64px;height:48px;object-fit:cover;border-radius:6px;background:var(--edge)}
+.p{font:800 22px "Barlow Condensed",sans-serif;letter-spacing:.06em}
+.s{color:var(--muted);font-size:14px}
+.row .c{margin-left:auto;font:700 18px "Barlow Condensed",sans-serif;letter-spacing:.1em}
+.empty{color:var(--muted);text-align:center;padding:40px 10px}
+.scanbox{position:relative;border-radius:10px;overflow:hidden;background:#000;margin-top:14px}
+.scanbox video{width:100%;display:block}
+.scanbox::after{content:"";position:absolute;inset:18%;border:3px solid var(--line);border-radius:10px}
+.car{background:var(--surface);border-radius:12px;overflow:hidden;margin-top:18px}
+.car img{width:100%;display:block;max-height:240px;object-fit:cover;background:var(--edge);min-height:120px}
+.car .body{padding:16px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-top:10px}
+.facts div span{display:block;font-size:13px;color:var(--muted)}
+.facts div b{font:700 20px "Barlow Condensed",sans-serif}
+.fee{display:flex;justify-content:space-between;align-items:baseline;border-top:2px dashed var(--edge);margin-top:14px;padding-top:12px}
+.fee b{font:800 40px "Barlow Condensed",sans-serif}
+.pay{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.pay button{padding:12px 4px;border:1.5px solid var(--edge);border-radius:8px;background:transparent;color:var(--ink);font:700 18px "Barlow Condensed",sans-serif}
+.pay button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.done{text-align:center;padding:30px 16px;background:var(--surface);border-radius:12px;margin-top:18px;border-top:8px solid var(--ok)}
+.done .big{font:800 34px "Barlow Condensed",sans-serif;color:var(--ok)}
+details{margin-top:28px;color:var(--muted)}
+details summary{cursor:pointer;font-weight:600}
+.summary{display:flex;gap:10px;margin-bottom:14px}
+.summary div{flex:1;background:var(--surface);border-radius:10px;padding:10px 12px}
+.summary b{display:block;font:800 24px "Barlow Condensed",sans-serif;color:var(--ink)}
+.summary span{font-size:13px;color:var(--muted)}
+.card{background:var(--surface);border-radius:12px;padding:20px;border-top:8px solid var(--line)}
+.loading{color:var(--muted);text-align:center;padding:60px 10px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loadingView" class="loading">Loading…</div>
+
+  <!-- LOGIN -->
+  <section id="loginView" hidden>
+    <h1>Parking management</h1>
+    <div class="bay"></div>
+    <div class="card">
+      <label for="email" style="margin-top:0">Email</label>
+      <input id="email" type="email" autocomplete="username" inputmode="email">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <button class="go" id="signIn">Sign in</button>
+      <div class="err" id="loginErr" role="alert"></div>
+      <button class="link" id="forgot">Forgot password?</button>
+      <div class="note" id="loginNote"></div>
+    </div>
+  </section>
+
+  <!-- SET NEW PASSWORD -->
+  <section id="resetView" hidden>
+    <h1>New password</h1>
+    <div class="bay"></div>
+    <div class="card">
+      <label for="newPw" style="margin-top:0">New password</label>
+      <input id="newPw" type="password" autocomplete="new-password">
+      <label for="newPw2">Type it again</label>
+      <input id="newPw2" type="password" autocomplete="new-password">
+      <button class="go" id="savePw">Save password</button>
+      <div class="err" id="resetErr" role="alert"></div>
+    </div>
+  </section>
+
+  <!-- MAIN APP -->
+  <div id="appView" hidden>
+    <div class="top">
+      <h1>Parking gate</h1>
+      <div class="who"><b id="whoName"></b><br><span id="whoRole"></span> · <button class="link" id="signOut">Sign out</button></div>
+    </div>
+    <div class="tabs">
+      <button data-tab="in" aria-pressed="true">Check in</button>
+      <button data-tab="out" aria-pressed="false">Check out</button>
+      <button data-tab="list" aria-pressed="false">Parked</button>
+    </div>
+    <div class="bay"></div>
+
+    <!-- CHECK IN -->
+    <section id="formView">
+      <label for="plate">Number plate</label>
+      <input id="plate" class="plate" type="text" autocomplete="off" autocapitalize="characters" placeholder="ABC 1234" maxlength="12">
+      <label for="driver">Driver name</label>
+      <input id="driver" type="text" autocomplete="off" placeholder="Full name">
+      <label>Car photo</label>
+      <div class="photo" id="photoBox" role="button" tabindex="0"><span>Tap to take a photo</span></div>
+      <input id="photo" type="file" accept="image/*" capture="environment" hidden>
+      <button class="go" id="checkIn">Check in car</button>
+      <div class="err" id="err" role="alert"></div>
+    </section>
+
+    <section id="ticketView" hidden>
+      <div class="ticket">
+        <div class="meta">Exit code for</div>
+        <div class="p" id="tPlate"></div>
+        <div class="code" id="tCode"></div>
+        <div class="meta" id="tMeta"></div>
+        <div id="qr"></div>
+      </div>
+      <button class="go" id="next">Check in next car</button>
+    </section>
+
+    <!-- CHECK OUT -->
+    <section id="outView" hidden>
+      <div id="lookup">
+        <label for="code">Driver's exit code</label>
+        <input id="code" class="codein" type="text" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="······">
+        <button class="go" id="find">Find car</button>
+        <button class="secondary" id="scanBtn">Scan QR code</button>
+        <div class="scanbox" id="scanBox" hidden><video id="video" playsinline muted></video></div>
+        <div class="err" id="outErr" role="alert"></div>
+        <details>
+          <summary>Parking rate and currency</summary>
+          <label for="currency">Currency</label>
+          <select id="currency">
+            <option value="ZMW">Zambian kwacha (ZMW)</option>
+            <option value="MWK">Malawian kwacha (MWK)</option>
+            <option value="ZAR">South African rand (ZAR)</option>
+            <option value="USD">US dollar (USD)</option>
+            <option value="EUR">Euro (EUR)</option>
+            <option value="GBP">British pound (GBP)</option>
+            <option value="BWP">Botswana pula (BWP)</option>
+            <option value="NAD">Namibian dollar (NAD)</option>
+            <option value="MZN">Mozambican metical (MZN)</option>
+            <option value="CDF">Congolese franc (CDF)</option>
+            <option value="NGN">Nigerian naira (NGN)</option>
+            <option value="KES">Kenyan shilling (KES)</option>
+          </select>
+          <label for="rate">Rate per hour (each started hour is charged)</label>
+          <input id="rate" type="number" min="0" step="any" inputmode="decimal">
+          <button class="secondary" id="saveSettings">Save rate</button>
+          <div class="meta" id="settingsNote"></div>
+        </details>
+      </div>
+
+      <div id="carView" hidden>
+        <div class="car">
+          <img id="cPhoto" alt="Photo taken at check-in">
+          <div class="body">
+            <div class="meta">Check this is the same car</div>
+            <div class="p" id="cPlate" style="font-size:34px"></div>
+            <div class="facts">
+              <div><span>Driver</span><b id="cDriver"></b></div>
+              <div><span>Exit code</span><b id="cCode"></b></div>
+              <div><span>Came in</span><b id="cIn"></b></div>
+              <div><span>Time parked</span><b id="cDur"></b></div>
+            </div>
+            <div class="fee"><span>Amount due</span><b id="cFee"></b></div>
+          </div>
+        </div>
+        <label>Paid with</label>
+        <div class="pay" id="pay">
+          <button data-m="Cash" aria-pressed="true">Cash</button>
+          <button data-m="Card" aria-pressed="false">Card</button>
+          <button data-m="EFT" aria-pressed="false">EFT</button>
+        </div>
+        <button class="go" id="checkOut">Take payment and check out</button>
+        <button class="secondary" id="cancelOut">Cancel</button>
+        <div class="err" id="payErr" role="alert"></div>
+      </div>
+
+      <div id="doneView" hidden>
+        <div class="done">
+          <div class="big">Checked out</div>
+          <div class="p" id="dPlate"></div>
+          <div class="meta" id="dMeta"></div>
+        </div>
+        <button class="go" id="nextOut">Check out next car</button>
+      </div>
+    </section>
+
+    <!-- PARKED -->
+    <section id="listView" hidden>
+      <div class="summary">
+        <div><b id="sIn">–</b><span>Parked now</span></div>
+        <div><b id="sOut">–</b><span>Left today</span></div>
+        <div><b id="sTake">–</b><span>Taken today</span></div>
+      </div>
+      <button class="secondary" id="refresh" style="margin:0 0 14px">Refresh</button>
+      <div id="list"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ---------- Connection ---------- */
+const SUPABASE_URL = 'https://uwduuzfdzeftqhphiard.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ANk1xGllu1EBKZAxF2UtWg_gc73P1qX';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const BUCKET = 'car-photos';
+
+const $ = id => document.getElementById(id);
+let me = null, profile = null, settings = { rate: 20, currency: 'ZMW' };
+let photoBlob = null, current = null, method = 'Cash', stream = null, scanning = false, started = false;
+let recovering = /type=recovery/.test(location.hash);
+
+/* ---------- Helpers ---------- */
+const hm = d => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function money(n, cur){ cur = cur || settings.currency; n = Number(n) || 0;
+  try { return new Intl.NumberFormat(undefined, { style:'currency', currency:cur, maximumFractionDigits: n % 1 ? 2 : 0 }).format(n); }
+  catch(e){ return cur + ' ' + n.toFixed(2); } }
+function duration(ms){ const m = Math.max(0, Math.floor(ms/60000)), h = Math.floor(m/60); return h ? h+'h '+(m%60)+'m' : m+'m'; }
+function fee(ms){ return Math.max(1, Math.ceil(ms/3600000)) * Number(settings.rate); }
+function startOfToday(){ const d = new Date(); d.setHours(0,0,0,0); return d.toISOString(); }
+function makeCode(){ const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({length:6}, () => ch[Math.floor(Math.random()*ch.length)]).join(''); }
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)); }
+function friendly(error){ const m = (error && error.message) || String(error);
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'No connection. Check the internet and try again.';
+  return m; }
+async function photoUrls(paths){
+  const clean = paths.filter(Boolean); if (!clean.length) return {};
+  const { data } = await sb.storage.from(BUCKET).createSignedUrls(clean, 3600);
+  const map = {}; (data || []).forEach(d => { if (d.signedUrl) map[d.path] = d.signedUrl; }); return map;
+}
+function show(view){
+  ['loadingView','loginView','resetView','appView'].forEach(v => $(v).hidden = v !== view);
+}
+
+/* ---------- Auth ---------- */
+sb.auth.onAuthStateChange((event, session) => {
+  setTimeout(() => {
+    if (event === 'PASSWORD_RECOVERY' || (recovering && session)) { recovering = true; show('resetView'); return; }
+    if (session && !started) { me = session.user; startApp(); }
+    if (!session) { started = false; me = null; profile = null; show('loginView'); }
+  }, 0);
+});
+
+$('signIn').addEventListener('click', async () => {
+  const email = $('email').value.trim(), password = $('password').value;
+  $('loginErr').textContent = ''; $('loginNote').textContent = '';
+  if (!email || !password) { $('loginErr').textContent = 'Enter your email and password.'; return; }
+  $('signIn').disabled = true; $('signIn').textContent = 'Signing in…';
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  $('signIn').disabled = false; $('signIn').textContent = 'Sign in';
+  if (error) $('loginErr').textContent = /invalid/i.test(error.message) ? 'Wrong email or password.' : friendly(error);
+});
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') $('signIn').click(); });
+
+$('forgot').addEventListener('click', async () => {
+  const email = $('email').value.trim();
+  $('loginErr').textContent = ''; $('loginNote').textContent = '';
+  if (!email) { $('loginErr').textContent = 'Type your email above first, then tap Forgot password.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] });
+  if (error) $('loginErr').textContent = friendly(error);
+  else $('loginNote').textContent = 'If that email has an account, a reset link is on its way.';
+});
+
+$('savePw').addEventListener('click', async () => {
+  const a = $('newPw').value, b = $('newPw2').value;
+  if (a.length < 6) { $('resetErr').textContent = 'Use at least 6 characters.'; return; }
+  if (a !== b) { $('resetErr').textContent = 'The two passwords don\u2019t match.'; return; }
+  const { data, error } = await sb.auth.updateUser({ password: a });
+  if (error) { $('resetErr').textContent = friendly(error); return; }
+  history.replaceState(null, '', location.pathname);
+  recovering = false; me = data.user; started = false; startApp();
+});
+
+$('signOut').addEventListener('click', async () => { stopScan(); await sb.auth.signOut(); });
+
+async function startApp(){
+  started = true; show('loadingView');
+  const { data: p, error } = await sb.from('profiles').select('*').eq('id', me.id).maybeSingle();
+  if (error || !p) { started = false; await sb.auth.signOut(); show('loginView');
+    $('loginErr').textContent = error ? friendly(error) : 'This login has no staff profile. Ask the manager.'; return; }
+  profile = p;
+  $('whoName').textContent = p.full_name || me.email;
+  $('whoRole').textContent = p.role === 'manager' ? 'Manager' : 'Attendant';
+  await loadSettings();
+  show('appView'); setTab('in');
+  cleanupPhotos();
+}
+
+/* ---------- Settings (shared rate + currency) ---------- */
+async function loadSettings(){
+  const { data } = await sb.from('settings').select('*').eq('id', 1).maybeSingle();
+  if (data) settings = { rate: Number(data.rate), currency: data.currency };
+  $('rate').value = settings.rate; $('currency').value = settings.currency;
+  const isMgr = profile && profile.role === 'manager';
+  $('rate').disabled = !isMgr; $('currency').disabled = !isMgr; $('saveSettings').hidden = !isMgr;
+  $('settingsNote').textContent = isMgr ? '' : 'Only the manager can change the rate.';
+}
+$('saveSettings').addEventListener('click', async () => {
+  const rate = parseFloat($('rate').value), currency = $('currency').value;
+  if (isNaN(rate) || rate < 0) { $('settingsNote').textContent = 'Enter a valid rate.'; return; }
+  const { error } = await sb.from('settings').update({ rate, currency }).eq('id', 1);
+  if (error) { $('settingsNote').textContent = friendly(error); return; }
+  settings = { rate, currency }; $('settingsNote').textContent = 'Saved for all phones.';
+});
+
+/* ---------- Photo cleanup: delete photos 7 days after checkout ---------- */
+async function cleanupPhotos(){
+  try {
+    const cutoff = new Date(Date.now() - 7*864e5).toISOString();
+    const { data } = await sb.from('entries').select('id,photo_path').lt('exited_at', cutoff).not('photo_path', 'is', null).limit(100);
+    if (!data || !data.length) return;
+    const { error } = await sb.storage.from(BUCKET).remove(data.map(d => d.photo_path));
+    if (error) return;
+    await sb.from('entries').update({ photo_path: null }).in('id', data.map(d => d.id));
+  } catch(e) {}
+}
+
+/* ---------- Check in ---------- */
+function openCamera(){ $('photo').click(); }
+$('photoBox').addEventListener('click', openCamera);
+$('photoBox').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCamera(); } });
+$('photo').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const max = 640, s = Math.min(1, max / Math.max(img.width, img.height));
+    const cv = document.createElement('canvas'); cv.width = img.width*s; cv.height = img.height*s;
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    cv.toBlob(b => { photoBlob = b;
+      $('photoBox').innerHTML = '<img alt="Car photo">';
+      $('photoBox').querySelector('img').src = cv.toDataURL('image/jpeg', .7);
+    }, 'image/jpeg', .7);
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+});
+
+$('checkIn').addEventListener('click', async () => {
+  const plate = $('plate').value.trim().toUpperCase().replace(/\s+/g, ' ');
+  const driver = $('driver').value.trim();
+  if (!plate) return $('err').textContent = 'Enter the number plate.';
+  if (!driver) return $('err').textContent = 'Enter the driver\u2019s name.';
+  if (!photoBlob) return $('err').textContent = 'Take a photo of the car.';
+  $('err').textContent = ''; $('checkIn').disabled = true; $('checkIn').textContent = 'Saving…';
+  try {
+    const dup = await sb.from('entries').select('id').eq('plate', plate).is('exited_at', null).maybeSingle();
+    if (dup.error) throw dup.error;
+    if (dup.data) { $('err').textContent = plate + ' is already checked in.'; return; }
+
+    const path = new Date().toISOString().slice(0,10) + '/' + uid() + '.jpg';
+    const up = await sb.storage.from(BUCKET).upload(path, photoBlob, { contentType: 'image/jpeg' });
+    if (up.error) throw up.error;
+
+    let entry = null;
+    for (let i = 0; i < 5 && !entry; i++) {
+      const { data, error } = await sb.from('entries')
+        .insert({ plate, driver, photo_path: path, code: makeCode(), checked_in_by: me.id })
+        .select().single();
+      if (!error) { entry = data; break; }
+      if (error.code === '23505' && /plate/.test(error.message)) { $('err').textContent = plate + ' is already checked in.'; await sb.storage.from(BUCKET).remove([path]); return; }
+      if (error.code !== '23505') throw error;
+    }
+    if (!entry) throw new Error('Could not create a unique code. Try again.');
+    showTicket(entry);
+  } catch(e) { $('err').textContent = friendly(e); }
+  finally { $('checkIn').disabled = false; $('checkIn').textContent = 'Check in car'; }
+});
+
+function showTicket(e){
+  $('tPlate').textContent = e.plate; $('tCode').textContent = e.code;
+  $('tMeta').textContent = e.driver + ', in at ' + hm(e.entered_at);
+  $('qr').innerHTML = ''; new QRCode($('qr'), { text: 'PARK:' + e.code + ':' + e.plate, width: 180, height: 180 });
+  $('formView').hidden = true; $('ticketView').hidden = false;
+}
+function resetIn(){
+  $('plate').value = ''; $('driver').value = ''; $('photo').value = ''; photoBlob = null;
+  $('photoBox').innerHTML = '<span>Tap to take a photo</span>'; $('err').textContent = '';
+  $('formView').hidden = false; $('ticketView').hidden = true;
+}
+$('next').addEventListener('click', resetIn);
+
+/* ---------- Check out ---------- */
+async function findByCode(raw){
+  let code = (raw || '').trim().toUpperCase();
+  if (code.startsWith('PARK:')) code = code.split(':')[1] || '';
+  if (code.length !== 6) { $('outErr').textContent = 'Exit codes are 6 characters.'; return; }
+  $('outErr').textContent = ''; $('find').disabled = true; $('find').textContent = 'Searching…';
+  try {
+    const { data, error } = await sb.from('entries').select('*').eq('code', code).is('exited_at', null).maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      const { data: gone } = await sb.from('entries').select('plate,exited_at').eq('code', code)
+        .not('exited_at', 'is', null).order('exited_at', { ascending: false }).limit(1);
+      $('outErr').textContent = gone && gone.length
+        ? gone[0].plate + ' already left at ' + hm(gone[0].exited_at) + '.'
+        : 'No parked car has code ' + code + '. Check the code with the driver.';
+      return;
+    }
+    await showCar(data);
+  } catch(e) { $('outErr').textContent = friendly(e); }
+  finally { $('find').disabled = false; $('find').textContent = 'Find car'; }
+}
+$('find').addEventListener('click', () => findByCode($('code').value));
+$('code').addEventListener('keydown', e => { if (e.key === 'Enter') findByCode($('code').value); });
+
+async function showCar(e){
+  current = e; const ms = Date.now() - new Date(e.entered_at);
+  $('cPhoto').removeAttribute('src');
+  $('cPlate').textContent = e.plate; $('cDriver').textContent = e.driver;
+  $('cCode').textContent = e.code; $('cIn').textContent = hm(e.entered_at);
+  $('cDur').textContent = duration(ms); $('cFee').textContent = money(fee(ms));
+  $('payErr').textContent = '';
+  $('lookup').hidden = true; $('carView').hidden = false; $('doneView').hidden = true;
+  const urls = await photoUrls([e.photo_path]);
+  if (urls[e.photo_path]) $('cPhoto').src = urls[e.photo_path];
+}
+
+$('pay').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; method = b.dataset.m;
+  $('pay').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+$('checkOut').addEventListener('click', async () => {
+  if (!current) return;
+  $('checkOut').disabled = true; $('checkOut').textContent = 'Saving…'; $('payErr').textContent = '';
+  try {
+    const now = new Date(), amount = fee(now - new Date(current.entered_at));
+    const { data, error } = await sb.from('entries')
+      .update({ exited_at: now.toISOString(), amount, currency: settings.currency, method, paid: true, checked_out_by: me.id })
+      .eq('id', current.id).is('exited_at', null).select().maybeSingle();
+    if (error) throw error;
+    if (!data) { $('payErr').textContent = 'This car was already checked out on another phone.'; return; }
+    $('dPlate').textContent = data.plate;
+    $('dMeta').textContent = money(data.amount, data.currency) + ' paid by ' + method.toLowerCase() + '. Out at ' + hm(data.exited_at) + '.';
+    $('carView').hidden = true; $('doneView').hidden = false; current = null;
+  } catch(e) { $('payErr').textContent = friendly(e); }
+  finally { $('checkOut').disabled = false; $('checkOut').textContent = 'Take payment and check out'; }
+});
+
+function resetOut(){
+  current = null; $('code').value = ''; $('outErr').textContent = ''; stopScan();
+  $('lookup').hidden = false; $('carView').hidden = true; $('doneView').hidden = true;
+}
+$('cancelOut').addEventListener('click', resetOut);
+$('nextOut').addEventListener('click', resetOut);
+
+/* QR scanning */
+$('scanBtn').addEventListener('click', async () => {
+  if (scanning) { stopScan(); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    $('video').srcObject = stream; await $('video').play();
+    $('scanBox').hidden = false; $('scanBtn').textContent = 'Stop scanning'; scanning = true; $('outErr').textContent = '';
+    tick();
+  } catch(err) { $('outErr').textContent = 'Camera not available. Type the code instead.'; }
+});
+function tick(){
+  if (!scanning) return;
+  const v = $('video');
+  if (v.readyState === v.HAVE_ENOUGH_DATA && window.jsQR) {
+    const cv = document.createElement('canvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+    const ctx = cv.getContext('2d'); ctx.drawImage(v, 0, 0);
+    const r = jsQR(ctx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height);
+    if (r && r.data) { stopScan(); $('code').value = (r.data.split(':')[1] || r.data).slice(0, 6); findByCode(r.data); return; }
+  }
+  requestAnimationFrame(tick);
+}
+function stopScan(){
+  scanning = false; if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  $('scanBox').hidden = true; $('scanBtn').textContent = 'Scan QR code';
+}
+
+/* ---------- Parked list ---------- */
+async function renderList(){
+  $('list').innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const [parkedRes, leftRes] = await Promise.all([
+      sb.from('entries').select('*').is('exited_at', null).order('entered_at', { ascending: false }),
+      sb.from('entries').select('amount,currency').gte('exited_at', startOfToday())
+    ]);
+    if (parkedRes.error) throw parkedRes.error;
+    if (leftRes.error) throw leftRes.error;
+    const parked = parkedRes.data, left = leftRes.data;
+    $('sIn').textContent = parked.length; $('sOut').textContent = left.length;
+    const byCur = {}; left.forEach(e => { const c = e.currency || settings.currency; byCur[c] = (byCur[c] || 0) + Number(e.amount || 0); });
+    const parts = Object.keys(byCur).map(c => money(byCur[c], c));
+    $('sTake').textContent = parts.length ? parts.join(' + ') : money(0);
+
+    $('list').innerHTML = parked.length ? '' : '<div class="empty">No cars parked right now.</div>';
+    const urls = await photoUrls(parked.map(e => e.photo_path));
+    parked.forEach(e => {
+      const d = document.createElement('div'); d.className = 'row';
+      d.innerHTML = '<img alt=""><div><div class="p"></div><div class="s"></div></div><div class="c"></div>';
+      if (urls[e.photo_path]) d.querySelector('img').src = urls[e.photo_path];
+      d.querySelector('.p').textContent = e.plate;
+      d.querySelector('.s').textContent = e.driver + ', in at ' + hm(e.entered_at);
+      d.querySelector('.c').textContent = e.code;
+      d.addEventListener('click', () => { setTab('in'); showTicket(e); });
+      $('list').appendChild(d);
+    });
+  } catch(e) { $('list').innerHTML = ''; const m = document.createElement('div'); m.className = 'empty'; m.textContent = friendly(e); $('list').appendChild(m); }
+}
+$('refresh').addEventListener('click', renderList);
+
+/* ---------- Tabs ---------- */
+function setTab(t){
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === t));
+  if (t !== 'out') stopScan();
+  $('formView').hidden = t !== 'in'; $('ticketView').hidden = true;
+  $('outView').hidden = t !== 'out'; $('listView').hidden = t !== 'list';
+  if (t === 'in') resetIn();
+  if (t === 'out') { resetOut(); loadSettings(); }
+  if (t === 'list') renderList();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+</script>
+</body>
+</html>
