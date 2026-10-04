@@ -32,7 +32,7 @@ h1{font:800 30px/1 "Barlow Condensed",Arial Narrow,sans-serif;margin:0}
 .who b{color:var(--ink)}
 .link{background:none;border:0;color:var(--ink);text-decoration:underline;font:600 14px "Barlow",sans-serif;padding:0;cursor:pointer}
 .bay{height:6px;background:repeating-linear-gradient(90deg,var(--line) 0 40px,transparent 40px 56px);margin:16px 0 20px;border-radius:2px}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tabs{display:grid;grid-template-columns:repeat(var(--cols,3),1fr);gap:6px}
 .tabs button{font:700 17px "Barlow Condensed",sans-serif;padding:10px 6px;border:1.5px solid var(--edge);background:transparent;color:var(--ink);border-radius:20px}
 .tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 label{display:block;font-weight:600;font-size:15px;margin:18px 0 6px}
@@ -82,6 +82,25 @@ details summary{cursor:pointer;font-weight:600}
 .summary span{font-size:13px;color:var(--muted)}
 .card{background:var(--surface);border-radius:12px;padding:20px;border-top:8px solid var(--line)}
 .loading{color:var(--muted);text-align:center;padding:60px 10px}
+.range{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px}
+.range button{padding:9px 4px;border:1.5px solid var(--edge);border-radius:8px;background:transparent;color:var(--ink);font:700 16px "Barlow Condensed",sans-serif}
+.range button[aria-pressed="true"]{background:var(--line);border-color:var(--line);color:#16181B}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.stats div{background:var(--surface);border-radius:10px;padding:10px 12px}
+.stats b{display:block;font:800 28px "Barlow Condensed",sans-serif}
+.stats span{font-size:13px;color:var(--muted)}
+.take{background:var(--surface);border-radius:10px;padding:12px;border-left:6px solid var(--ok);margin-bottom:18px}
+.take b{display:block;font:800 30px "Barlow Condensed",sans-serif;line-height:1.1}
+h2{font:800 22px "Barlow Condensed",sans-serif;margin:24px 0 10px}
+.listhead{display:flex;justify-content:space-between;align-items:baseline}
+.act{background:var(--surface);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer}
+.act .l1{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.act .amt{font:700 18px "Barlow Condensed",sans-serif;white-space:nowrap}
+.act .open{color:var(--line);font:700 16px "Barlow Condensed",sans-serif}
+.act .more{margin-top:10px}
+.act .more img{width:100%;border-radius:8px;display:block;margin-top:8px}
+.staff{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.staff select{width:auto;padding:8px 10px;font-size:16px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -130,6 +149,7 @@ details summary{cursor:pointer;font-weight:600}
       <button data-tab="in" aria-pressed="true">Check in</button>
       <button data-tab="out" aria-pressed="false">Check out</button>
       <button data-tab="list" aria-pressed="false">Parked</button>
+      <button data-tab="mgr" aria-pressed="false" id="mgrTab" hidden>Manager</button>
     </div>
     <div class="bay"></div>
 
@@ -236,6 +256,32 @@ details summary{cursor:pointer;font-weight:600}
       <button class="secondary" id="refresh" style="margin:0 0 14px">Refresh</button>
       <div id="list"></div>
     </section>
+
+    <!-- MANAGER -->
+    <section id="mgrView" hidden>
+      <div class="range" id="range">
+        <button data-r="today" aria-pressed="true">Today</button>
+        <button data-r="yesterday" aria-pressed="false">Yesterday</button>
+        <button data-r="week" aria-pressed="false">7 days</button>
+        <button data-r="month" aria-pressed="false">30 days</button>
+      </div>
+      <div class="stats">
+        <div><b id="mIn">–</b><span>Cars came in</span></div>
+        <div><b id="mOut">–</b><span>Cars left</span></div>
+        <div><b id="mNow">–</b><span>Parked right now</span></div>
+        <div><b id="mAvg">–</b><span>Average stay</span></div>
+      </div>
+      <div class="take">
+        <div class="meta">Takings</div>
+        <b id="mTake">–</b>
+        <div class="s" id="mMethods"></div>
+      </div>
+      <div class="listhead"><h2 style="margin:0 0 10px">Activity</h2><button class="link" id="csv">Download CSV</button></div>
+      <div id="mList"></div>
+      <h2>Staff</h2>
+      <div id="staff"></div>
+      <div class="meta">To add someone, create their login in Supabase under Authentication, then Users, then Add user. They'll show up here as an attendant.</div>
+    </section>
   </div>
 </div>
 
@@ -250,6 +296,7 @@ const $ = id => document.getElementById(id);
 let me = null, profile = null, settings = { rate: 20, currency: 'ZMW' };
 let photoBlob = null, current = null, method = 'Cash', stream = null, scanning = false, started = false;
 let recovering = /type=recovery/.test(location.hash);
+let range = 'today', mgrTimer = null, staffMap = {}, mgrRows = [];
 
 /* ---------- Helpers ---------- */
 const hm = d => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -312,7 +359,7 @@ $('savePw').addEventListener('click', async () => {
   recovering = false; me = data.user; started = false; startApp();
 });
 
-$('signOut').addEventListener('click', async () => { stopScan(); await sb.auth.signOut(); });
+$('signOut').addEventListener('click', async () => { stopScan(); clearInterval(mgrTimer); await sb.auth.signOut(); });
 
 async function startApp(){
   started = true; show('loadingView');
@@ -322,6 +369,8 @@ async function startApp(){
   profile = p;
   $('whoName').textContent = p.full_name || me.email;
   $('whoRole').textContent = p.role === 'manager' ? 'Manager' : 'Attendant';
+  $('mgrTab').hidden = p.role !== 'manager';
+  document.querySelector('.tabs').style.setProperty('--cols', p.role === 'manager' ? 4 : 3);
   await loadSettings();
   show('appView'); setTab('in');
   cleanupPhotos();
@@ -543,12 +592,126 @@ async function renderList(){
 }
 $('refresh').addEventListener('click', renderList);
 
+/* ---------- Manager dashboard ---------- */
+function rangeBounds(r){
+  const d = new Date(); d.setHours(0,0,0,0);
+  let from = new Date(d), to = new Date(d); to.setDate(to.getDate() + 1);
+  if (r === 'yesterday') { from.setDate(from.getDate() - 1); to = new Date(d); }
+  if (r === 'week') from.setDate(from.getDate() - 6);
+  if (r === 'month') from.setDate(from.getDate() - 29);
+  return [from, to];
+}
+const inRange = (t, a, b) => t && new Date(t) >= a && new Date(t) < b;
+const dt = d => new Date(d).toLocaleString([], { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+
+async function loadStaff(){
+  const { data } = await sb.from('profiles').select('*').order('created_at');
+  staffMap = {}; (data || []).forEach(p => staffMap[p.id] = p);
+  return data || [];
+}
+
+async function renderMgr(){
+  const [from, to] = rangeBounds(range);
+  const a = from.toISOString(), b = to.toISOString();
+  try {
+    const [res, nowRes, staff] = await Promise.all([
+      sb.from('entries').select('*')
+        .or(`and(entered_at.gte.${a},entered_at.lt.${b}),and(exited_at.gte.${a},exited_at.lt.${b})`)
+        .order('entered_at', { ascending: false }).limit(2000),
+      sb.from('entries').select('id', { count: 'exact', head: true }).is('exited_at', null),
+      loadStaff()
+    ]);
+    if (res.error) throw res.error;
+    const rows = res.data; mgrRows = rows;
+    const came = rows.filter(e => inRange(e.entered_at, from, to));
+    const left = rows.filter(e => inRange(e.exited_at, from, to));
+    $('mIn').textContent = came.length; $('mOut').textContent = left.length;
+    $('mNow').textContent = nowRes.count ?? '–';
+    const avg = left.length ? left.reduce((s, e) => s + (new Date(e.exited_at) - new Date(e.entered_at)), 0) / left.length : 0;
+    $('mAvg').textContent = left.length ? duration(avg) : '–';
+
+    const byCur = {}, byMethod = {};
+    left.forEach(e => { const c = e.currency || settings.currency, n = Number(e.amount || 0);
+      byCur[c] = (byCur[c] || 0) + n;
+      const k = (e.method || 'Other') + '|' + c; byMethod[k] = (byMethod[k] || 0) + n; });
+    const cur = Object.keys(byCur);
+    $('mTake').textContent = cur.length ? cur.map(c => money(byCur[c], c)).join(' + ') : money(0);
+    $('mMethods').textContent = Object.keys(byMethod).map(k => { const [m, c] = k.split('|'); return m + ' ' + money(byMethod[k], c); }).join(' · ');
+
+    const list = $('mList'); list.innerHTML = '';
+    if (!rows.length) list.innerHTML = '<div class="empty">No activity in this period.</div>';
+    rows.forEach(e => {
+      const d = document.createElement('div'); d.className = 'act';
+      const l1 = document.createElement('div'); l1.className = 'l1';
+      const p = document.createElement('span'); p.className = 'p'; p.textContent = e.plate;
+      const amt = document.createElement('span');
+      if (e.exited_at) { amt.className = 'amt'; amt.textContent = money(e.amount, e.currency) + (e.method ? ' · ' + e.method : ''); }
+      else { amt.className = 'open'; amt.textContent = 'Still parked'; }
+      l1.append(p, amt);
+      const s = document.createElement('div'); s.className = 's';
+      s.textContent = e.driver + ' · in ' + dt(e.entered_at) + (e.exited_at ? ' · out ' + hm(e.exited_at) + ' (' + duration(new Date(e.exited_at) - new Date(e.entered_at)) + ')' : '');
+      const more = document.createElement('div'); more.className = 'more s'; more.hidden = true;
+      const name = id => (staffMap[id] && staffMap[id].full_name) || '—';
+      more.textContent = 'Code ' + e.code + ' · checked in by ' + name(e.checked_in_by) + (e.exited_at ? ' · checked out by ' + name(e.checked_out_by) : '');
+      d.append(l1, s, more);
+      d.addEventListener('click', async () => {
+        more.hidden = !more.hidden;
+        if (!more.hidden && !more.querySelector('img') && !more.dataset.loaded) {
+          more.dataset.loaded = '1';
+          if (!e.photo_path) { const n = document.createElement('div'); n.textContent = 'Photo removed (older than 7 days after checkout).'; more.appendChild(n); return; }
+          const urls = await photoUrls([e.photo_path]);
+          if (urls[e.photo_path]) { const img = document.createElement('img'); img.alt = 'Car photo'; img.src = urls[e.photo_path]; more.appendChild(img); }
+        }
+      });
+      list.appendChild(d);
+    });
+
+    const box = $('staff'); box.innerHTML = '';
+    staff.forEach(sp => {
+      const r = document.createElement('div'); r.className = 'staff';
+      const n = document.createElement('div'); n.textContent = sp.full_name || 'Unnamed';
+      const sel = document.createElement('select');
+      ['attendant', 'manager'].forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v === 'manager' ? 'Manager' : 'Attendant'; sel.appendChild(o); });
+      sel.value = sp.role;
+      if (sp.id === me.id) { sel.disabled = true; sel.title = 'You can\u2019t change your own role'; }
+      sel.addEventListener('change', async () => {
+        const { error } = await sb.from('profiles').update({ role: sel.value }).eq('id', sp.id);
+        if (error) { alert(friendly(error)); sel.value = sp.role; } else sp.role = sel.value;
+      });
+      r.append(n, sel); box.appendChild(r);
+    });
+  } catch(e) { $('mList').innerHTML = ''; const m = document.createElement('div'); m.className = 'empty'; m.textContent = friendly(e); $('mList').appendChild(m); }
+}
+
+$('range').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; range = b.dataset.r;
+  $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderMgr();
+});
+
+$('csv').addEventListener('click', () => {
+  const name = id => (staffMap[id] && staffMap[id].full_name) || '';
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const head = ['Plate','Driver','Code','Came in','Left','Minutes parked','Amount','Currency','Paid with','Checked in by','Checked out by'];
+  const lines = [head.map(q).join(',')].concat(mgrRows.map(e => [
+    e.plate, e.driver, e.code, new Date(e.entered_at).toLocaleString(), e.exited_at ? new Date(e.exited_at).toLocaleString() : '',
+    e.exited_at ? Math.round((new Date(e.exited_at) - new Date(e.entered_at)) / 60000) : '',
+    e.exited_at ? e.amount : '', e.currency || '', e.method || '', name(e.checked_in_by), name(e.checked_out_by)
+  ].map(q).join(',')));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'parking-' + range + '-' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+});
+
 /* ---------- Tabs ---------- */
 function setTab(t){
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === t));
   if (t !== 'out') stopScan();
   $('formView').hidden = t !== 'in'; $('ticketView').hidden = true;
-  $('outView').hidden = t !== 'out'; $('listView').hidden = t !== 'list';
+  $('outView').hidden = t !== 'out'; $('listView').hidden = t !== 'list'; $('mgrView').hidden = t !== 'mgr';
+  clearInterval(mgrTimer);
+  if (t === 'mgr') { renderMgr(); mgrTimer = setInterval(renderMgr, 30000); }
   if (t === 'in') resetIn();
   if (t === 'out') { resetOut(); loadSettings(); }
   if (t === 'list') renderList();
